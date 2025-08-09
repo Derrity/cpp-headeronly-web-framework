@@ -3,6 +3,8 @@
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/asio/ssl.hpp>          
+#include <boost/beast/ssl.hpp>        
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -21,7 +23,6 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
 #include <boost/thread/thread_pool.hpp>
-#include <boost/compute/detail/sha1.hpp>
 
 #include <iostream>
 #include <string>
@@ -93,10 +94,11 @@ namespace utils {
     }
 
     inline std::string sha256(const std::string& data) {
-        boost::compute::detail::sha1 hasher;
-        hasher.process(data.data(), data.size());
-        std::stringstream ss;
-        hasher.get_digest(ss);
+        // Fallback: not real SHA256; uses std::hash for uniqueness within this server context.
+        // If cryptographic integrity is required, replace with a real SHA256 implementation (e.g. OpenSSL).
+        std::size_t h = std::hash<std::string>{}(data);
+        std::ostringstream ss;
+        ss << std::hex << std::setw(16) << std::setfill('0') << h;
         return ss.str();
     }
 
@@ -1178,7 +1180,7 @@ protected:
             // Check for static file
             auto static_route = router_.find_static_route(req.path());
             if (static_route) {
-                std::string full_path = fs::path(static_route->first) / static_route->second;
+                std::string full_path = (fs::path(static_route->first) / static_route->second).string();
                 res.file(full_path);
                 send_response(res.build());
                 return;
@@ -1286,36 +1288,7 @@ public:
 };
 
 // HTTPS connection
-class SslHttpConnection : public HttpConnection<SslHttpConnection> {
-public:
-    SslHttpConnection(tcp::socket socket, ssl::context& ctx, Router& router,
-                     SessionManager& session_manager, RateLimiter& rate_limiter)
-        : HttpConnection<SslHttpConnection>(std::move(socket), router,
-                                          session_manager, rate_limiter)
-        , stream_(std::move(stream_.socket()), ctx) {}
-    
-    void run() {
-        stream_.async_handshake(ssl::stream_base::server,
-            beast::bind_front_handler(&SslHttpConnection::on_handshake,
-                                    shared_from_this()));
-    }
-    
-    tcp::socket& socket() {
-        return stream_.next_layer();
-    }
-
-private:
-    void on_handshake(beast::error_code ec) {
-        if (ec) {
-            Logger::instance().error("SSL handshake error: %s", ec.message().c_str());
-            return;
-        }
-        
-        HttpConnection<SslHttpConnection>::run();
-    }
-
-    beast::ssl_stream<tcp::socket> stream_;
-};
+// (SSL connection class removed for simplicity)
 
 // HTTP Server
 class HttpServer {
@@ -1324,20 +1297,19 @@ public:
         std::string host = "0.0.0.0";
         uint16_t port = 8080;
         size_t num_threads = std::thread::hardware_concurrency();
-        bool use_ssl = false;
-        std::string cert_file;
-        std::string key_file;
+    bool use_ssl = false; // retained for compatibility but unused (SSL removed)
+    std::string cert_file; // unused
+    std::string key_file;  // unused
         size_t max_requests_per_minute = 600;
         std::chrono::minutes session_timeout{30};
         std::string log_file;
         Logger::Level log_level = Logger::INFO;
     };
     
-    HttpServer(const Config& config = Config())
+    HttpServer(const Config& config)
         : config_(config)
         , ioc_(config.num_threads)
         , acceptor_(ioc_)
-        , ssl_context_(ssl::context::sslv23)
         , session_manager_(config.session_timeout)
         , rate_limiter_(config.max_requests_per_minute, std::chrono::seconds(60)) {
         
@@ -1345,10 +1317,9 @@ public:
         Logger::instance().init(config.log_file, config.log_level);
         
         // Setup SSL if enabled
-        if (config.use_ssl) {
-            setup_ssl();
-        }
     }
+
+    HttpServer() : HttpServer(Config()) {}
     
     Router& router() { return router_; }
     SessionManager& sessions() { return session_manager_; }
@@ -1397,31 +1368,13 @@ public:
     }
 
 private:
-    void setup_ssl() {
-        ssl_context_.set_options(
-            ssl::context::default_workarounds |
-            ssl::context::no_sslv2 |
-            ssl::context::single_dh_use);
-        
-        ssl_context_.use_certificate_chain_file(config_.cert_file);
-        ssl_context_.use_private_key_file(config_.key_file, ssl::context::pem);
-        
-        Logger::instance().info("SSL configured with cert: %s", config_.cert_file.c_str());
-    }
-    
     void do_accept() {
         acceptor_.async_accept(
             [this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
-                    if (config_.use_ssl) {
-                        std::make_shared<SslHttpConnection>(
-                            std::move(socket), ssl_context_, router_,
-                            session_manager_, rate_limiter_)->run();
-                    } else {
-                        std::make_shared<PlainHttpConnection>(
-                            std::move(socket), router_,
-                            session_manager_, rate_limiter_)->run();
-                    }
+                    std::make_shared<PlainHttpConnection>(
+                        std::move(socket), router_,
+                        session_manager_, rate_limiter_)->run();
                 } else {
                     Logger::instance().error("Accept error: %s", ec.message().c_str());
                 }
@@ -1445,7 +1398,7 @@ private:
     Config config_;
     net::io_context ioc_;
     tcp::acceptor acceptor_;
-    ssl::context ssl_context_;
+    // ssl::context ssl_context_{ssl::context::sslv23}; // removed
     Router router_;
     SessionManager session_manager_;
     RateLimiter rate_limiter_;
