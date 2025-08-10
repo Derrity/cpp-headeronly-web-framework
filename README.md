@@ -129,7 +129,7 @@ cd vcpkg
 
 ### Compilation Methods
 
-#### Method 1: Direct Compilation with g++
+#### Method 1: Direct Compilation with g++/clang++
 
 ```bash
 # Basic compilation (HTTP only)
@@ -193,26 +193,7 @@ cmake ..
 make -j$(nproc)
 ```
 
-#### Method 3: Using Clang++
 
-```bash
-clang++ -std=c++17 -O2 main.cpp \
-    -DBOOST_BIND_GLOBAL_PLACEHOLDERS \
-    -DBOOST_LOG_DYN_LINK \
-    -lboost_system \
-    -lboost_thread \
-    -lboost_filesystem \
-    -lboost_log \
-    -lboost_log_setup \
-    -lboost_regex \
-    -lboost_date_time \
-    -lboost_chrono \
-    -lboost_atomic \
-    -lssl -lcrypto \
-    -lpthread \
-    -lrt \
-    -o myserver
-```
 
 ---
 
