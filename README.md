@@ -133,36 +133,10 @@ cd vcpkg
 
 ```bash
 # Basic compilation (HTTP only)
-g++ -std=c++17 -O2 main.cpp \
-    -DBOOST_BIND_GLOBAL_PLACEHOLDERS \
-    -lboost_system \
-    -lboost_thread \
-    -lboost_filesystem \
-    -lboost_log \
-    -lboost_log_setup \
-    -lboost_regex \
-    -lboost_date_time \
-    -lboost_chrono \
-    -lpthread \
-    -o myserver
+clang++ -std=c++17 -O2 main.cpp -I. -DBOOST_LOG_DYN_LINK -o main   -lboost_log -lboost_log_setup -lboost_system -lboost_filesystem   -lboost_thread -lboost_regex -lboost_date_time -lpthread
 
 # With SSL support
-g++ -std=c++17 -O2 main.cpp \
-    -DBOOST_BIND_GLOBAL_PLACEHOLDERS \
-    -DBOOST_LOG_DYN_LINK \
-    -lboost_system \
-    -lboost_thread \
-    -lboost_filesystem \
-    -lboost_log \
-    -lboost_log_setup \
-    -lboost_regex \
-    -lboost_date_time \
-    -lboost_chrono \
-    -lboost_atomic \
-    -lssl -lcrypto \
-    -lpthread \
-    -lrt \
-    -o myserver
+clang++ -std=c++17 -O2 main.cpp -I. -DBOOST_LOG_DYN_LINK -o main   -lboost_log -lboost_log_setup -lboost_system -lboost_filesystem   -lboost_thread -lboost_regex -lboost_date_time -lpthread -lssl -lcrypto
 ```
 
 #### Method 2: Using CMake
